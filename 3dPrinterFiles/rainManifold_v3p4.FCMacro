@@ -1,0 +1,663 @@
+import Part
+import math
+from FreeCAD import Base
+
+#v3 will use springs & compression of tubes to cut off flow
+#v3.2 fuses in/out manifold into 1, prints on 45, adds base and mounts for everything.   Also has on/off switch for fast compile.
+#v3.3 unfuses - the print kept slipping in X or Y and failing. too complex? Instead print separately in/out and clip together.
+#VALUES#
+fastcompile = False
+
+#Create new document
+App.newDocument("Manifold")
+App.setActiveDocument("Manifold")
+App.ActiveDocument=App.getDocument("Manifold")
+Gui.ActiveDocument=Gui.getDocument("Manifold")
+
+thickness = 2
+shadowCutThickness = 1
+loopThickness = 7
+
+#loop to compress hose & shadow cut
+left = Part.makeBox(70,loopThickness,loopThickness)
+leftShadowCut = Part.makeBox(left.BoundBox.XMax,left.BoundBox.YMax+shadowCutThickness,left.BoundBox.ZMax+shadowCutThickness)
+right = left.copy()
+rightShadowCut = leftShadowCut.copy()
+top = Part.makeBox(loopThickness,30,loopThickness)
+topShadowCut = Part.makeBox(top.BoundBox.XMax+shadowCutThickness,top.BoundBox.YMax,top.BoundBox.ZMax+shadowCutThickness)
+bottom = top.copy()
+bottomExtra = Part.makeBox(top.BoundBox.XMax,top.BoundBox.YMax,top.BoundBox.ZMax*1.41) #flatten out the side the arm must push against
+bottomShadowCut = topShadowCut.copy()
+left.Placement = App.Placement(App.Vector(0,0,0), App.Rotation(0,0,45))
+leftShadowCut.Placement = App.Placement(App.Vector(0,0,-shadowCutThickness*1.4/2), App.Rotation(0,0,45))
+leftShadowCut2 = Part.makeBox(left.BoundBox.XMax,2,.2) #add a bit more shadow cut at the bottom of the left/right to avoid contact with the pipe.
+leftShadowCut2.Placement = App.Placement(App.Vector(0,-1,0), App.Rotation(0,0,0))
+leftShadowCut = leftShadowCut.fuse(leftShadowCut2)
+bottom.Placement = App.Placement(App.Vector(loopThickness/1.4,0,0), App.Rotation(0,-45,0))
+bottomExtra.Placement = App.Placement(App.Vector(bottom.BoundBox.XMin,bottom.BoundBox.YMin,0), App.Rotation(0,0,0))
+bottom = bottom.fuse(bottomExtra)
+bottomShadowCut.Placement = App.Placement(App.Vector(loopThickness/1.4,0,-shadowCutThickness*1.4/2), App.Rotation(0,-45,0))
+top.Placement = App.Placement(App.Vector(left.BoundBox.XMax-loopThickness/1.4,0,0), App.Rotation(0,-45,0))
+topShadowCut.Placement = App.Placement(App.Vector(left.BoundBox.XMax-loopThickness/1.4,0,-shadowCutThickness*1.4/2), App.Rotation(0,-45,0))
+right.Placement = App.Placement(App.Vector(0,top.BoundBox.YMax,0), App.Rotation(0,0,45))
+rightShadowCut.Placement = App.Placement(App.Vector(0,top.BoundBox.YMax,-shadowCutThickness*1.4/2), App.Rotation(0,0,45))
+rightShadowCut2 = Part.makeBox(right.BoundBox.XMax,2,.2) #add a bit more shadow cut at the bottom of the left/right to avoid contact with the pipe.
+rightShadowCut2.Placement = App.Placement(App.Vector(0,top.BoundBox.YMax-1,0), App.Rotation(0,0,0))
+rightShadowCut = rightShadowCut.fuse(rightShadowCut2)
+
+loop = bottom.fuse(left).fuse(right).fuse(top)
+loopShadow = bottomShadowCut.fuse(leftShadowCut).fuse(rightShadowCut).fuse(topShadowCut)
+
+#spring holder - Spring is Menardds 88259. 1/2x1-9/16 compression
+springHolder = Part.makeCylinder(loopThickness/2*1.4-.5,15)
+springHolder2= Part.makeCylinder(loopThickness/2*1.4-.5,10)
+#springHolderShadowCut = Part.makeCylinder(springHolder.BoundBox.XMax+4,35)
+springHolderShadowCut = Part.makeBox(35,springHolder.BoundBox.XMax*2+7,springHolder.BoundBox.XMax*2+4)
+springHolder.Placement = App.Placement(App.Vector(0,top.BoundBox.YMax/2,loopThickness/2*1.4-.5), App.Rotation(0,90,0))
+#springHolderShadowCut.Placement = App.Placement(App.Vector(0,top.BoundBox.YMax/2,loopThickness/2*1.4+2), App.Rotation(0,90,0))
+springHolderShadowCut.Placement = App.Placement(App.Vector(2,top.BoundBox.YMax/2-springHolderShadowCut.BoundBox.YMax/2,0), App.Rotation(0,0,0))
+springHolder2.Placement =  App.Placement(App.Vector(springHolderShadowCut.BoundBox.XMax-springHolder2.BoundBox.ZMax,top.BoundBox.YMax/2,loopThickness/2*1.4-.5), App.Rotation(0,90,0))
+
+loop = loop.fuse(springHolder)
+
+loopHolder = Part.makeBox(40,50,16)
+loopHolder.Placement = App.Placement(App.Vector(loop.BoundBox.XMax-12-loopHolder.BoundBox.XMax,(loop.BoundBox.YMax-loop.BoundBox.YMin)-loopHolder.BoundBox.YMax,0), App.Rotation(0,0,0))
+loopHolder = loopHolder.cut(springHolderShadowCut)
+loopHolder = loopHolder.fuse(springHolder2)
+loopHolder = loopHolder.cut(loopShadow)
+
+loop = loop.fuse(loopHolder)
+
+loop2=loop.copy()
+loop3=loop.copy()
+loop4=loop.copy()
+loop5=loop.copy()
+loop6=loop.copy()
+loop7=loop.copy()
+
+loop2.Placement = App.Placement(App.Vector(loop.BoundBox.XMin-4.5,loop.BoundBox.YMax-0.5,0), App.Rotation(45,0,0))
+loop3.Placement = App.Placement(App.Vector(loop.BoundBox.XMin-35,loop.BoundBox.YMax+24,0), App.Rotation(90,0,0))
+loop4.Placement = App.Placement(App.Vector(loop.BoundBox.XMin-74.5,loop.BoundBox.YMax+20.5,0), App.Rotation(135,0,0))
+loop5.Placement = App.Placement(App.Vector(loop.BoundBox.XMin-100,(loop.BoundBox.YMax-loop.BoundBox.YMin)/2+5,0), App.Rotation(180,0,0))
+loop6.Placement = App.Placement(App.Vector(loop.BoundBox.XMin-96,-loop.BoundBox.YMax+31,0), App.Rotation(-135,0,0))
+loop7.Placement = App.Placement(App.Vector(loop.BoundBox.XMin-25,-loop.BoundBox.YMax+10,0), App.Rotation(-45,0,0))
+
+
+#connectorLoop
+loops = loop.fuse(loop2).fuse(loop3).fuse(loop4).fuse(loop5).fuse(loop6).fuse(loop7)
+connectorLoop = Part.makeCylinder((loops.BoundBox.XMax-loops.BoundBox.XMin)*2.35/5,loops.BoundBox.ZMax)
+connectorLoopCut = Part.makeCylinder((loops.BoundBox.XMax-loops.BoundBox.XMin)*1.55/5,loops.BoundBox.ZMax)
+connectorLoop = connectorLoop.cut(connectorLoopCut)
+connectorLoop.Placement = App.Placement(App.Vector((loops.BoundBox.XMax+loops.BoundBox.XMin)/2,10,0), App.Rotation(0,0,0))
+connectorLoopCut2 = Part.makeBox(1000,1000,1000)
+connectorLoopCut2.Placement = App.Placement(App.Vector(-500,loop.BoundBox.YMax-connectorLoopCut2.BoundBox.YMax,0), App.Rotation(0,0,0))
+connectorLoopCut3 = Part.makeBox(loop.BoundBox.YMax-loop.BoundBox.YMin,200,loop.BoundBox.ZMax)
+connectorLoopCut3.Placement = App.Placement(App.Vector((loop3.BoundBox.XMax+loop3.BoundBox.XMin)/2-connectorLoopCut3.BoundBox.XMax/2,0,0), App.Rotation(0,0,0))
+connectorLoop = connectorLoop.cut(connectorLoopCut2)
+connectorLoop = connectorLoop.cut(connectorLoopCut3)
+connectorLoopCut3 = Part.makeBox(loop.BoundBox.YMax-loop.BoundBox.YMin-1,200,loop.BoundBox.ZMax) #remake just smaller x for angle cuts
+connectorLoopCut3.Placement = App.Placement(App.Vector((loop3.BoundBox.XMax+loop3.BoundBox.XMin)/2-connectorLoopCut3.BoundBox.XMax/2,25,0), App.Rotation(-45,0,0))
+connectorLoop = connectorLoop.cut(connectorLoopCut3)
+connectorLoopCut3.Placement = App.Placement(App.Vector((loop3.BoundBox.XMax+loop3.BoundBox.XMin)/2-connectorLoopCut3.BoundBox.XMax/2,31,0), App.Rotation(45,0,0))
+connectorLoop = connectorLoop.cut(connectorLoopCut3)
+#connectorLoop2 - below
+connectorLoop2 = Part.makeCylinder((loops.BoundBox.XMax-loops.BoundBox.XMin)*2.35/5,loops.BoundBox.ZMax)
+connectorLoopCut2 = Part.makeCylinder((loops.BoundBox.XMax-loops.BoundBox.XMin)*1.55/5,loops.BoundBox.ZMax)
+connectorLoop2 = connectorLoop2.cut(connectorLoopCut2)
+connectorLoop2.Placement = App.Placement(App.Vector((loops.BoundBox.XMax+loops.BoundBox.XMin)/2,20,0), App.Rotation(0,0,0))
+connectorLoopCut2 = Part.makeBox(1000,1000,1000)
+connectorLoopCut2.Placement = App.Placement(App.Vector(-500,loop.BoundBox.YMin+1,0), App.Rotation(0,0,0))
+connectorLoop2 = connectorLoop2.cut(connectorLoopCut2)
+connectorLoopCut3.Placement = App.Placement(App.Vector((loop3.BoundBox.XMax+loop3.BoundBox.XMin)/2-connectorLoopCut3.BoundBox.XMax/2,15,0), App.Rotation(135,0,0))
+connectorLoop2 = connectorLoop2.cut(connectorLoopCut3)
+connectorLoopCut3.Placement = App.Placement(App.Vector((loop3.BoundBox.XMax+loop3.BoundBox.XMin)/2-connectorLoopCut3.BoundBox.XMax/2,42,0), App.Rotation(-135,0,0))
+connectorLoop2 = connectorLoop2.cut(connectorLoopCut3)
+#help the wires from top manifold to bottom manifold - power and signal
+wireCut = Part.makeCylinder(3,20)
+wireCut.Placement = App.Placement(App.Vector((loops.BoundBox.XMax+loops.BoundBox.XMin)/2+0,loops.BoundBox.YMin+10,0), App.Rotation(0,0,0))
+connectorLoop2 = connectorLoop2.cut(wireCut)
+wireCut.Placement = App.Placement(App.Vector((loops.BoundBox.XMax+loops.BoundBox.XMin)/2+9,loops.BoundBox.YMin+15,0), App.Rotation(0,0,0))
+connectorLoop2 = connectorLoop2.cut(wireCut)
+wireCut.Placement = App.Placement(App.Vector((loops.BoundBox.XMax+loops.BoundBox.XMin)/2-9,loops.BoundBox.YMin+15,0), App.Rotation(0,0,0))
+connectorLoop2 = connectorLoop2.cut(wireCut)
+#Put screw holes in connector loop between loops to secure to manifold later
+radius = 1.7; height = 200; pitch = 1.2
+cylinder = Part.makeCylinder(radius,height)
+cylinder.Placement=App.Placement(App.Vector((loops.BoundBox.XMax+loops.BoundBox.XMin)/2,(loops.BoundBox.YMax+loops.BoundBox.YMin)/2,connectorLoop.BoundBox.ZMax/2), App.Rotation(45/2,90,0))
+connectorLoop = connectorLoop.cut(cylinder)
+cylinder.Placement=App.Placement(App.Vector((loops.BoundBox.XMax+loops.BoundBox.XMin)/2,(loops.BoundBox.YMax+loops.BoundBox.YMin)/2,connectorLoop.BoundBox.ZMax/2), App.Rotation(45/2+45,90,0))
+connectorLoop = connectorLoop.cut(cylinder)
+cylinder.Placement=App.Placement(App.Vector((loops.BoundBox.XMax+loops.BoundBox.XMin)/2,(loops.BoundBox.YMax+loops.BoundBox.YMin)/2,connectorLoop.BoundBox.ZMax/2), App.Rotation(45/2+90,90,0))
+connectorLoop = connectorLoop.cut(cylinder)
+cylinder.Placement=App.Placement(App.Vector((loops.BoundBox.XMax+loops.BoundBox.XMin)/2,(loops.BoundBox.YMax+loops.BoundBox.YMin)/2,connectorLoop.BoundBox.ZMax/2), App.Rotation(45/2+135,90,0))
+connectorLoop = connectorLoop.cut(cylinder)
+cylinder.Placement=App.Placement(App.Vector((loops.BoundBox.XMax+loops.BoundBox.XMin)/2,(loops.BoundBox.YMax+loops.BoundBox.YMin)/2,connectorLoop.BoundBox.ZMax/2), App.Rotation(-45/2,90,0))
+connectorLoop2 = connectorLoop2.cut(cylinder)
+cylinder.Placement=App.Placement(App.Vector((loops.BoundBox.XMax+loops.BoundBox.XMin)/2,(loops.BoundBox.YMax+loops.BoundBox.YMin)/2,connectorLoop.BoundBox.ZMax/2), App.Rotation(-45/2-45,90,0))
+connectorLoop2 = connectorLoop2.cut(cylinder)
+cylinder.Placement=App.Placement(App.Vector((loops.BoundBox.XMax+loops.BoundBox.XMin)/2,(loops.BoundBox.YMax+loops.BoundBox.YMin)/2,connectorLoop.BoundBox.ZMax/2), App.Rotation(-45/2-90,90,0))
+connectorLoop2 = connectorLoop2.cut(cylinder)
+cylinder.Placement=App.Placement(App.Vector((loops.BoundBox.XMax+loops.BoundBox.XMin)/2,(loops.BoundBox.YMax+loops.BoundBox.YMin)/2,connectorLoop.BoundBox.ZMax/2), App.Rotation(-45/2-135,90,0))
+connectorLoop2 = connectorLoop2.cut(cylinder)
+
+#make the servo motor holder
+motorHarness = Part.makeCylinder(30,8)
+motorHarnessShadow = motorHarness.copy()
+motorHarnessCut = Part.makeBox(21,41,motorHarness.BoundBox.ZMax)
+motorHarnessCut.Placement =  App.Placement(App.Vector(-motorHarnessCut.BoundBox.XMax/2,-motorHarnessCut.BoundBox.YMax/2,0), App.Rotation(0,0,0))
+motorHarness = motorHarness.cut(motorHarnessCut)
+screwCut = Part.makeCylinder(1.5,motorHarness.BoundBox.ZMax)
+screwCut.Placement = App.Placement(App.Vector(5,49/2,0), App.Rotation(0,0,0))
+motorHarness = motorHarness.cut(screwCut)
+screwCut.Placement = App.Placement(App.Vector(-5,49/2,0), App.Rotation(0,0,0))
+motorHarness = motorHarness.cut(screwCut)
+screwCut.Placement = App.Placement(App.Vector(5,-49/2,0), App.Rotation(0,0,0))
+motorHarness = motorHarness.cut(screwCut)
+screwCut.Placement = App.Placement(App.Vector(-5,-49/2,0), App.Rotation(0,0,0))
+motorHarness = motorHarness.cut(screwCut)
+#cone to house motor Harness
+cone = Part.makeCone(176/2,30,23)
+coneCut = Part.makeCone(cone.BoundBox.XMax-9,30,cone.BoundBox.ZMax-motorHarness.BoundBox.ZMax)
+cone = cone.cut(coneCut)
+motorHarness.Placement = App.Placement(App.Vector(0,0,cone.BoundBox.ZMax-motorHarness.BoundBox.ZMax), App.Rotation(0,0,0))
+motorHarnessShadow.Placement = App.Placement(App.Vector(0,0,cone.BoundBox.ZMax-motorHarnessShadow.BoundBox.ZMax), App.Rotation(0,0,0))
+cone = cone.cut(motorHarnessShadow)
+cone = cone.fuse(motorHarness)
+cone.Placement = App.Placement(App.Vector((loops.BoundBox.XMax+loops.BoundBox.XMin)/2,(loops.BoundBox.YMax+loops.BoundBox.YMin)/2,loops.BoundBox.ZMax), App.Rotation(0,0,0))
+#fuse it here, later fuse in other random parts for printability
+output = loop.fuse(loop2).fuse(loop3).fuse(loop4).fuse(loop5).fuse(loop6).fuse(loop7).fuse(connectorLoop).fuse(connectorLoop2).fuse(cone)
+
+#now make arm to turn on pipes
+circle = Part.makeCylinder(9,14) #adds 10 to 50 
+axle = Part.makeCylinder(2.5,40)
+circle = circle.cut(axle)
+donut = Part.makeTorus(circle.BoundBox.XMax+2,3) #avoid scraping/catching on bottom and top of loop
+donut.Placement = App.Placement(App.Vector(0,0,circle.BoundBox.ZMax+1), App.Rotation(0,0,0))
+circle = circle.cut(donut)
+#donut = Part.makeTorus(circle.BoundBox.XMax,1) #add a donut to top/bottom to keep on track
+#donut.Placement = App.Placement(App.Vector(0,0,circle.BoundBox.ZMax), App.Rotation(0,0,0))
+#circleCut = Part.makeBox(100,100,100)
+#circleCut.Placement = App.Placement(App.Vector(-30,-30,circle.BoundBox.ZMax), App.Rotation(0,0,0))
+#circle = circle.fuse(donut)
+#circle = circle.cut(circleCut)
+donut = Part.makeTorus(9,1) #add a donut to top/bottom to keep on track
+donut.Placement = App.Placement(App.Vector(0,0,circle.BoundBox.ZMin), App.Rotation(0,0,0))
+circleCut = Part.makeBox(100,100,100)
+circleCut.Placement = App.Placement(App.Vector(-30,-30,0), App.Rotation(0,0,0))
+circleCut.Placement = App.Placement(App.Vector(-30,-30,-circleCut.BoundBox.ZMax), App.Rotation(0,0,0))
+circle = circle.fuse(donut)
+circle = circle.cut(circleCut)
+arm = Part.makeBox(11,26,14)
+armCut = Part.makeBox(3,15,12)
+armCut.Placement = App.Placement(App.Vector(2,0,2), App.Rotation(0,0,0))
+arm = arm.cut(armCut)
+screwCut = Part.makeCylinder(1.4,20)
+screwCut.Placement = App.Placement(App.Vector(-1,3,8), App.Rotation(0,90,0))
+arm = arm.cut(screwCut)
+screwCut.Placement = App.Placement(App.Vector(-1,3+9,8), App.Rotation(0,90,0))
+arm = arm.cut(screwCut)
+arm2 = Part.makeBox(circle.BoundBox.ZMax+6,20,arm.BoundBox.ZMax) #this holds the circle
+arm2Cut = Part.makeBox(circle.BoundBox.ZMax,100,arm2.BoundBox.ZMax)
+#add keeper lip to keep bottom of arm below loops
+#keeper = Part.makeBox((arm2.BoundBox.XMax-arm2Cut.BoundBox.XMax)/2,10,arm2.BoundBox.ZMax)
+arm2Cut.Placement = App.Placement(App.Vector(3,arm2.BoundBox.YMin+3,0), App.Rotation(0,0,0))
+arm2 = arm2.cut(arm2Cut)
+axle.Placement = App.Placement(App.Vector(-1,arm2.BoundBox.YMax-4,arm2.BoundBox.ZMax/2), App.Rotation(0,90,0))
+arm2 = arm2.cut(axle)
+#keeper.Placement = App.Placement(App.Vector(arm2.BoundBox.XMin,arm2.BoundBox.YMax,0), App.Rotation(0,0,0))
+#arm2 = arm2.fuse(keeper)
+#make keeper into a wedge shape
+#keeperWedgeCut = Part.makeBox(40,40,40)
+#keeperWedgeCut.Placement = App.Placement(App.Vector(arm2Cut.BoundBox.XMin+0,arm2Cut.BoundBox.YMin,arm2.BoundBox.ZMax-3), App.Rotation(0,-45,0))
+#arm2 = arm2.cut(keeperWedgeCut)
+#keeperWedgeCut.Placement = App.Placement(App.Vector(arm2Cut.BoundBox.XMin+0,arm2Cut.BoundBox.YMin,-arm2.BoundBox.ZMax-7-keeperWedgeCut.BoundBox.XMax), App.Rotation(0,-45,0))
+#arm2 = arm2.cut(keeperWedgeCut)
+#keeperWedgeCut.Placement = App.Placement(App.Vector(arm2Cut.BoundBox.XMin+0,axle.BoundBox.YMax+2,0), App.Rotation(14,0,0))
+#arm2 = arm2.cut(keeperWedgeCut)
+arm2.Placement = App.Placement(App.Vector(arm.BoundBox.XMax/2-arm2.BoundBox.XMax/2-0.5,arm.BoundBox.YMax,0), App.Rotation(0,0,0))
+
+arm3 = Part.makeBox(arm.BoundBox.XMax,26,arm.BoundBox.ZMax) #this continuest the arm and connects both sides of servo arm to this implement
+armCut = Part.makeBox(3,arm3.BoundBox.YMax,12)
+armCut.Placement = App.Placement(App.Vector(2,2,2), App.Rotation(0,0,0))
+arm3 = arm3.cut(armCut)
+screwCut.Placement = App.Placement(App.Vector(-1,4,8), App.Rotation(0,90,0))
+arm3 = arm3.cut(screwCut)
+screwCut.Placement = App.Placement(App.Vector(-1,4+9,8), App.Rotation(0,90,0))
+arm3 = arm3.cut(screwCut)
+arm3ScrewCut = Part.makeCylinder(5,30)
+arm3ScrewCut.Placement = App.Placement(App.Vector(arm3.BoundBox.XMax-20,arm3.BoundBox.YMax-5,8), App.Rotation(0,90,0))
+arm3 = arm3.cut(arm3ScrewCut)
+arm3ScrewCut2 = Part.makeBox(2,10,12)
+arm3ScrewCut2.Placement = App.Placement(App.Vector(0,arm3.BoundBox.YMax-10,2+5), App.Rotation(0,0,0))
+arm3 = arm3.cut(arm3ScrewCut2)
+arm3.Placement = App.Placement(App.Vector(0,arm.BoundBox.YMin-arm3.BoundBox.YMax,0), App.Rotation(0,0,0))
+
+
+arm = arm.fuse(arm2).fuse(arm3)
+circle.Placement = App.Placement(App.Vector(35,20,0), App.Rotation(0,0,0))
+arm = arm.fuse(circle)
+arm.Placement =  App.Placement(App.Vector(80,80,0), App.Rotation(0,0,0))
+#Part.show(arm)
+
+##############make manifold 7:1, 1 source. #############
+manifold = Part.makeCylinder(120,11)
+manifoldCut = Part.makeCylinder(manifold.BoundBox.XMax-20,manifold.BoundBox.ZMax)
+manifold = manifold.cut(manifoldCut)
+manifoldInner = Part.makeCylinder(manifold.BoundBox.XMax-2,manifold.BoundBox.ZMax-2)
+manifoldInnerCut = Part.makeCylinder(manifold.BoundBox.XMax-18,manifoldInner.BoundBox.ZMax)
+manifoldInner = manifoldInner.cut(manifoldInnerCut)
+manifoldInner.Placement = App.Placement(App.Vector(0,0,2), App.Rotation(0,0,0))
+manifold = manifold.cut(manifoldInner)
+manifoldTop = Part.makeTorus(120-10,10)
+manifoldTopCut = Part.makeBox(1000,1000,1000)
+manifoldTopCut.Placement = App.Placement(App.Vector(-500,-500,-manifoldTopCut.BoundBox.ZMax), App.Rotation(0,0,0))
+manifoldTop = manifoldTop.cut(manifoldTopCut)
+manifoldTopCut2 = Part.makeTorus(120-10,7)
+manifoldTop = manifoldTop.cut(manifoldTopCut2)
+manifoldTop.Placement = App.Placement(App.Vector(0,0,manifold.BoundBox.ZMax), App.Rotation(0,0,0))
+#add center.   
+maniCenter = Part.makeCylinder(manifold.BoundBox.XMax-35,5)
+#join the center to the edge ring
+maniOutCenterConnector = Part.makeBox(manifold.BoundBox.XMax-10,10,2)
+maniOutCenterConnectorAngles = [0,45,90,135,180,-45,-90,-135]
+for angle in maniOutCenterConnectorAngles:
+  maniOutCenterConnector.Placement = App.Placement(App.Vector(0,0,0), App.Rotation(0,0,0)) #flatten out first
+  maniOutCenterConnector.Placement = App.Placement(App.Vector(0,0,0), App.Rotation(angle,0,0))
+  maniCenter = maniCenter.fuse(maniOutCenterConnector)
+#Then add solenoid holes (26,26 square).
+manifoldScrewCut = Part.makeCylinder(2.5,10)
+manifoldScrewCut.Placement = App.Placement(App.Vector(0,0+50,0), App.Rotation(0,0,0))
+maniCenter = maniCenter.cut(manifoldScrewCut)
+manifoldScrewCut.Placement = App.Placement(App.Vector(0,26+50,0), App.Rotation(0,0,0))
+maniCenter = maniCenter.cut(manifoldScrewCut)
+manifoldScrewCut.Placement = App.Placement(App.Vector(26,0+50,0), App.Rotation(0,0,0))
+maniCenter = maniCenter.cut(manifoldScrewCut)
+manifoldScrewCut.Placement = App.Placement(App.Vector(26,26+50,0), App.Rotation(0,0,0))
+maniCenter = maniCenter.cut(manifoldScrewCut)
+#holes for Motor (80,55).
+manifoldScrewCut = Part.makeCylinder(3.0,10)
+manifoldScrewCut.Placement = App.Placement(App.Vector(0-60,0-40,0), App.Rotation(0,0,0))
+maniCenter = maniCenter.cut(manifoldScrewCut)
+manifoldScrewCut.Placement = App.Placement(App.Vector(0-60,80-40,0), App.Rotation(0,0,0))
+maniCenter = maniCenter.cut(manifoldScrewCut)
+manifoldScrewCut.Placement = App.Placement(App.Vector(55-60,0-40,0), App.Rotation(0,0,0))
+maniCenter = maniCenter.cut(manifoldScrewCut)
+manifoldScrewCut.Placement = App.Placement(App.Vector(55-60,80-40,0), App.Rotation(0,0,0))
+maniCenter = maniCenter.cut(manifoldScrewCut)
+#esc x2 (9)
+manifoldScrewCut = Part.makeCylinder(1.5,10)
+manifoldScrewCut.Placement = App.Placement(App.Vector(-17+40,0,0), App.Rotation(0,0,0))
+maniCenter = maniCenter.cut(manifoldScrewCut)
+manifoldScrewCut.Placement = App.Placement(App.Vector(-6+40,0,0), App.Rotation(0,0,0))
+maniCenter = maniCenter.cut(manifoldScrewCut)
+manifoldScrewCut.Placement = App.Placement(App.Vector(6+40,0,0), App.Rotation(0,0,0))
+maniCenter = maniCenter.cut(manifoldScrewCut)
+manifoldScrewCut.Placement = App.Placement(App.Vector(17+40,0,0), App.Rotation(0,0,0))
+maniCenter = maniCenter.cut(manifoldScrewCut)
+#pi (12,47.5 square)
+manifoldScrewCut = Part.makeCylinder(1.5,10)
+manifoldScrewCut.Placement = App.Placement(App.Vector(-35,65,0), App.Rotation(0,0,0))
+maniCenter = maniCenter.cut(manifoldScrewCut)
+manifoldScrewCut.Placement = App.Placement(App.Vector(-35+12,65,0), App.Rotation(0,0,0))
+maniCenter = maniCenter.cut(manifoldScrewCut)
+manifoldScrewCut.Placement = App.Placement(App.Vector(-35,65-47.5,0), App.Rotation(0,0,0))
+maniCenter = maniCenter.cut(manifoldScrewCut)
+manifoldScrewCut.Placement = App.Placement(App.Vector(-35+12,65-47.5,0), App.Rotation(0,0,0))
+maniCenter = maniCenter.cut(manifoldScrewCut)
+#wire guide holes
+wireGuide = Part.makeCylinder(3,10)
+wireGuide.Placement = App.Placement(App.Vector(-35,0,0), App.Rotation(0,0,0))
+maniCenter = maniCenter.cut(wireGuide)
+wireGuide.Placement = App.Placement(App.Vector(-35,-10,0), App.Rotation(0,0,0))
+maniCenter = maniCenter.cut(wireGuide)
+wireGuide.Placement = App.Placement(App.Vector(-35+12,0,0), App.Rotation(0,0,0))
+maniCenter = maniCenter.cut(wireGuide)
+wireGuide.Placement = App.Placement(App.Vector(-35+12,-10,0), App.Rotation(0,0,0))
+maniCenter = maniCenter.cut(wireGuide)
+wireGuide.Placement = App.Placement(App.Vector(-35,-20,0), App.Rotation(0,0,0))
+maniCenter = maniCenter.cut(wireGuide)
+wireGuide.Placement = App.Placement(App.Vector(-35+12,-20,0), App.Rotation(0,0,0))
+maniCenter = maniCenter.cut(wireGuide)
+wireGuide.Placement = App.Placement(App.Vector(0,-70,0), App.Rotation(0,0,0))
+maniCenter = maniCenter.cut(wireGuide)
+wireGuide.Placement = App.Placement(App.Vector(10,-70,0), App.Rotation(0,0,0))
+maniCenter = maniCenter.cut(wireGuide)
+wireGuide.Placement = App.Placement(App.Vector(-10,-70,0), App.Rotation(0,0,0))
+maniCenter = maniCenter.cut(wireGuide)
+wireGuide.Placement = App.Placement(App.Vector(0,-78,0), App.Rotation(0,0,0))
+maniCenter = maniCenter.cut(wireGuide)
+#add it to the manifold
+maniCenter.Placement = App.Placement(App.Vector(0,0,0), App.Rotation(0,0,0))
+manifold = manifold.fuse(maniCenter)
+#Support tube facing down to sense when barrel is empty. will click limit switch.
+emptyBarrel = Part.makeCylinder(5,20)
+emptyBarrelCut = Part.makeCylinder(3,emptyBarrel.BoundBox.ZMax)
+emptyBarrel = emptyBarrel.cut(emptyBarrelCut)
+emptyBarrel.Placement = App.Placement(App.Vector(-40,-40,maniCenter.BoundBox.ZMax+3), App.Rotation(90,-90,0))
+manifold = manifold.fuse(emptyBarrel)
+#make barb connector for OD 1/2 (13.5mm estimate) ID 3/8 (9.5mm)
+tubeOutideRadius = 14.0/2
+barbRadiusMax = 10.9/2
+barbOrig = Part.makeCone(8/2, barbRadiusMax, 4)
+barbCut = Part.makeCylinder(3,80) #water entry
+barb = barbOrig.cut(barbCut)
+barb2 = barb.copy()
+barb3 = barb.copy()
+barb4 = barb.copy()
+barb2.Placement = App.Placement(App.Vector(0,0,barb.BoundBox.ZMax), App.Rotation(0,0,0))
+barb3.Placement = App.Placement(App.Vector(0,0,barb2.BoundBox.ZMax), App.Rotation(0,0,0))
+barb4.Placement = App.Placement(App.Vector(0,0,barb3.BoundBox.ZMax), App.Rotation(0,0,0))
+barb = barb.fuse(barb2).fuse(barb3).fuse(barb4)
+
+tubeOutsideCut = Part.makeCylinder(tubeOutideRadius,barb.BoundBox.ZMax-2)
+tubeOutsideCut2 = Part.makeCylinder(tubeOutideRadius+.3,.3) #ensure bottom layer doesn't squish into tube entry path
+tubeOutsideCut = tubeOutsideCut.fuse(tubeOutsideCut2)
+tubeOutsideCyl = Part.makeCylinder(tubeOutsideCut.BoundBox.XMax+2,barb.BoundBox.ZMax)
+tubeOutsideCyl = tubeOutsideCyl.cut(tubeOutsideCut)
+tubeOutsideCyl = tubeOutsideCyl.cut(barbCut)
+barb = barb.fuse(tubeOutsideCyl)
+barb2 = barb.copy(); barb3 = barb.copy(); barb4 = barb.copy(); barb5 = barb.copy(); barb6 = barb.copy(); barb7 = barb.copy(); barb8 = barb.copy(); barbIn = barb.copy(); barbInputConnector=barb.copy()
+barbInSupport = Part.makeCylinder(barb.BoundBox.XMax,16) #used later to support build of barb in
+barbInSupport = barbInSupport.cut(barbCut)
+barbShadowCut = Part.makeCylinder(barb.BoundBox.XMax-2,barb.BoundBox.ZMax)
+barbShadowCut = barbShadowCut.fuse(tubeOutsideCut2) #also add bottom layer cut to shadow cut
+
+barb.Placement = App.Placement(App.Vector(manifold.BoundBox.XMax-tubeOutideRadius-3,0,0), App.Rotation(0,0,0))
+barbShadowCut.Placement = App.Placement(App.Vector(manifold.BoundBox.XMax-tubeOutideRadius-3,0,0), App.Rotation(0,0,0)); manifold = manifold.cut(barbShadowCut)
+barb2.Placement = App.Placement(App.Vector(manifold.BoundBox.XMax/1.41-tubeOutideRadius-.5,manifold.BoundBox.YMax/1.41-tubeOutideRadius-.5,0), App.Rotation(0,0,0)); manifold = manifold.cut(barbShadowCut)
+barbShadowCut.Placement = App.Placement(App.Vector(manifold.BoundBox.XMax/1.41-tubeOutideRadius-.5,manifold.BoundBox.YMax/1.41-tubeOutideRadius-.5,0), App.Rotation(0,0,0)); manifold = manifold.cut(barbShadowCut)
+barb3.Placement = App.Placement(App.Vector(0,manifold.BoundBox.YMax-tubeOutideRadius-3,0), App.Rotation(0,0,0))
+barbShadowCut.Placement = App.Placement(App.Vector(0,manifold.BoundBox.YMax-tubeOutideRadius-3,0), App.Rotation(0,0,0)); manifold = manifold.cut(barbShadowCut)
+barb4.Placement = App.Placement(App.Vector(-(manifold.BoundBox.XMax/1.41-tubeOutideRadius-.5),manifold.BoundBox.YMax/1.41-tubeOutideRadius-.5,0), App.Rotation(0,0,0)); manifold = manifold.cut(barbShadowCut)
+barbShadowCut.Placement = App.Placement(App.Vector(-(manifold.BoundBox.XMax/1.41-tubeOutideRadius-.5),manifold.BoundBox.YMax/1.41-tubeOutideRadius-.5,0), App.Rotation(0,0,0)); manifold = manifold.cut(barbShadowCut)
+barb5.Placement = App.Placement(App.Vector(manifold.BoundBox.XMin+tubeOutideRadius+3,0,0), App.Rotation(0,0,0))
+barbShadowCut.Placement = App.Placement(App.Vector(manifold.BoundBox.XMin+tubeOutideRadius+3,0,0), App.Rotation(0,0,0)); manifold = manifold.cut(barbShadowCut)
+barb6.Placement = App.Placement(App.Vector(-(manifold.BoundBox.XMax/1.41-tubeOutideRadius-.5),-(manifold.BoundBox.YMax/1.41-tubeOutideRadius-.5),0), App.Rotation(0,0,0)); manifold = manifold.cut(barbShadowCut)
+barbShadowCut.Placement = App.Placement(App.Vector(-(manifold.BoundBox.XMax/1.41-tubeOutideRadius-.5),-(manifold.BoundBox.YMax/1.41-tubeOutideRadius-.5),0), App.Rotation(0,0,0)); manifold = manifold.cut(barbShadowCut)
+barb7.Placement = App.Placement(App.Vector(manifold.BoundBox.XMax/1.41-tubeOutideRadius-.5,-(manifold.BoundBox.YMax/1.41-tubeOutideRadius-.5),0), App.Rotation(0,0,0)); manifold = manifold.cut(barbShadowCut)
+barbShadowCut.Placement = App.Placement(App.Vector(manifold.BoundBox.XMax/1.41-tubeOutideRadius-.5,-(manifold.BoundBox.YMax/1.41-tubeOutideRadius-.5),0), App.Rotation(0,0,0)); manifold = manifold.cut(barbShadowCut)
+barb8.Placement = App.Placement(App.Vector(0,manifold.BoundBox.YMin+tubeOutideRadius+3,0), App.Rotation(0,0,0))
+barbShadowCut.Placement = App.Placement(App.Vector(0,manifold.BoundBox.YMin+tubeOutideRadius+3,0), App.Rotation(0,0,0)); manifold = manifold.cut(barbShadowCut)
+
+#Part.show(manifold); Part.show(barb); Part.show(manifoldTop)
+manifold = manifold.fuse(barb).fuse(barb2).fuse(barb3).fuse(barb4).fuse(barb5).fuse(barb6).fuse(barb7).fuse(barb8).fuse(manifoldTop)
+manifold.Placement = App.Placement(App.Vector(200,0,0), App.Rotation(0,0,0))
+Part.show(manifold)
+
+################also make an input from pump to hose with barbIn############
+radius = 10.6
+inputConnector = Part.makeCylinder(13,14)
+inputConnectorcut = Part.makeCylinder(radius,inputConnector.BoundBox.ZMax-4)
+inputConnector = inputConnector.cut(inputConnectorcut)
+inputWaterCut = Part.makeCylinder(4,inputConnector.BoundBox.ZMax)
+inputConnector = inputConnector.cut(inputWaterCut)
+barbInputConnector.Placement = App.Placement(App.Vector(0,0,inputConnector.BoundBox.ZMax+barbInputConnector.BoundBox.ZMax), App.Rotation(0,180,0))
+inputConnector = inputConnector.fuse(barbInputConnector)
+
+if fastcompile == False:
+  #make threads to screw into
+  pitch = 1.7
+   #inputconnectorcut - a bit
+  threadThickness = 0.8
+  helix = Part.makeHelix(pitch,8,radius) #pitch, height, radius
+  thread_profile = Part.Wire(Part.makePolygon([App.Vector(radius,0,0),App.Vector(radius-threadThickness,0,pitch/3),App.Vector(radius,0,2*pitch/3),App.Vector(radius,0,0)]))
+    #note this is a Part.wire, polygon i.e. W0 = Part.Wire([edge0, edge1, edge2]) where edge0=Part.makeLine(ps0,ps1)
+    #refs - https://forum.freecad.org/viewtopic.php?t=65875    https://forum.freecad.org/viewtopic.php?t=51032
+    #note we have to complete the app.vector triangle - 4 points total so it connects back wehre it starts.
+  makeSolid = True; isFrenet = True; transition = 1; 
+  threads = Part.Wire(helix).makePipeShell([thread_profile],makeSolid,isFrenet)
+outputConnector = inputConnector.copy()
+inputConnector.Placement = App.Placement(App.Vector(100,150,inputConnector.BoundBox.ZMax), App.Rotation(0,180,0))
+outputConnector.Placement = App.Placement(App.Vector(130,150,inputConnector.BoundBox.ZMax), App.Rotation(0,180,0))
+if fastcompile == False:
+  threads.Placement = App.Placement(App.Vector(100,150,inputConnector.BoundBox.ZMax), App.Rotation(0,180,0))
+  inputConnector = inputConnector.fuse(threads); 
+  threads.Placement = App.Placement(App.Vector(0,0,0), App.Rotation(0,0,0))
+  threads.Placement = App.Placement(App.Vector(130,150,outputConnector.BoundBox.ZMax), App.Rotation(0,180,0))
+  outputConnector = outputConnector.fuse(threads)
+
+########now make output manifold - this is bottom connected to ring#####
+barbOrig = barbOrig.cut(barbCut)
+barb2Orig = barbOrig.copy()
+barb3Orig = barbOrig.copy()
+barb4Orig = barbOrig.copy()
+barb2Orig.Placement = App.Placement(App.Vector(0,0,barbOrig.BoundBox.ZMax), App.Rotation(0,0,0))
+barb3Orig.Placement = App.Placement(App.Vector(0,0,barb2Orig.BoundBox.ZMax), App.Rotation(0,0,0))
+barb4Orig.Placement = App.Placement(App.Vector(0,0,barb3Orig.BoundBox.ZMax), App.Rotation(0,0,0))
+barbOut = barbOrig.fuse(barb2Orig).fuse(barb3Orig).fuse(barb4Orig) #add a barb4 to make it 1 taller
+tubeOutsideCut = Part.makeCylinder(tubeOutideRadius,barbOut.BoundBox.ZMax-2)
+tubeOutsideCut2 = Part.makeCylinder(tubeOutideRadius+.3,.4) #ensure bottom layer doesn't squish into tube entry path
+tubeOutsideCut = tubeOutsideCut.fuse(tubeOutsideCut2)
+tubeOutsideCyl = Part.makeCylinder(tubeOutsideCut.BoundBox.XMax+2,barbOut.BoundBox.ZMax)
+tubeOutsideCyl = tubeOutsideCyl.cut(tubeOutsideCut)
+tubeOutsideCyl = tubeOutsideCyl.cut(barbCut)
+barbOut = barbOut.fuse(tubeOutsideCyl)
+barbShadowCut = Part.makeCylinder(barbOut.BoundBox.XMax-2,barbOut.BoundBox.ZMax)
+barbShadowCut = barbShadowCut.fuse(tubeOutsideCut2) #also add bottom layer cut to shadow cut
+#add in a thin cover circle
+#barbOutBuildability = Part.makeCylinder(tubeOutsideCyl.BoundBox.XMax,.3)
+#barbOut = barbOut.fuse(barbOutBuildability)
+#now make output manifold - this is outside connected to irrigation/hose
+irrigationHeight = 20
+irrigation1p4 = Part.makeCylinder(6,irrigationHeight) #outside of 1p4
+irrigationCut1 = Part.makeCylinder(irrigation1p4.BoundBox.XMax-2,irrigationHeight)
+irrigation1p4 = irrigation1p4.cut(irrigationCut1)
+irrigation1p4Barb = barbOrig = Part.makeCone(5.75/2,(5.75-1.5)/2, 6)
+irrigation1p4BarbCut = Part.makeCylinder(1.5,50)
+irrigation1p4 = irrigation1p4.cut(irrigation1p4BarbCut)
+irrigation1p4Barb = irrigation1p4Barb.cut(irrigation1p4BarbCut)
+irrigation1p4Barb2 = irrigation1p4Barb.copy(); irrigation1p4Barb3 = irrigation1p4Barb.copy()
+irrigation1p4Barb2.Placement = App.Placement(App.Vector(0,0,irrigation1p4Barb.BoundBox.ZMax), App.Rotation(0,0,0))
+irrigation1p4Barb3.Placement = App.Placement(App.Vector(0,0,irrigation1p4Barb2.BoundBox.ZMax), App.Rotation(0,0,0))
+irrigation1p4Barb = irrigation1p4Barb.fuse(irrigation1p4Barb2).fuse(irrigation1p4Barb3)
+irrigation1p4 = irrigation1p4.fuse(irrigation1p4Barb)
+irrigation1p4.Placement = App.Placement(App.Vector(0,0,barbOut.BoundBox.ZMax), App.Rotation(0,0,0))
+#Part.show(irrigation1p4)
+#garden hose on top
+gardenHoseRadius=24/2
+gardenHoseHeight = 28
+gardenHose = Part.makeCylinder(gardenHoseRadius,gardenHoseHeight)
+gardenHoseCut = Part.makeCylinder(gardenHoseRadius-2,gardenHoseHeight)
+gardenHoseCut.Placement = App.Placement(App.Vector(0,0,3), App.Rotation(0,0,0))
+gardenHose=gardenHose.cut(gardenHoseCut)
+gardenHose=gardenHose.cut(irrigation1p4BarbCut)
+if fastcompile == False:
+  #make spring
+  gardenHoseRadius = gardenHoseRadius + 0.05 #teh intersection of threads and inner cyl caused the inner cyl to dissapear on fuse. This doesn't intersect
+  ghelix = Part.makeHelix(2.3,gardenHose.BoundBox.ZMax-3,gardenHoseRadius) #pitch, height, radius
+  gthread_profile = Part.Wire(Part.makePolygon([App.Vector(gardenHoseRadius,0,0),App.Vector(gardenHoseRadius,0,2),App.Vector(gardenHoseRadius+1,0,1),App.Vector(gardenHoseRadius,0,0)]))
+    #note this is a Part.wire, polygon i.e. W0 = Part.Wire([edge0, edge1, edge2]) where edge0=Part.makeLine(ps0,ps1)
+    #refs - https://forum.freecad.org/viewtopic.php?t=65875    https://forum.freecad.org/viewtopic.php?t=51032
+    #note we have to complete the app.vector triangle - 4 points total so it connects back wehre it starts.
+  makeSolid = True; isFrenet = True; transition = 1; 
+  gthreads = Part.Wire(ghelix).makePipeShell([gthread_profile],makeSolid,isFrenet)
+  gardenHose.Placement=App.Placement(App.Vector(0,0,barbOut.BoundBox.ZMax), App.Rotation(0,0,0))
+  gthreads.Placement=App.Placement(App.Vector(0,0,barbOut.BoundBox.ZMax), App.Rotation(0,0,0))
+if fastcompile == False:
+  barbOut = barbOut.fuse(gardenHose).fuse(irrigation1p4).fuse(gthreads)
+else:
+  barbOut = barbOut.fuse(gardenHose).fuse(irrigation1p4)
+#Part.show(threads); #Part.show(gardenHose)
+#now make copies of it
+barbOut2 = barbOut.copy(); barbOut3 = barbOut.copy(); barbOut4 = barbOut.copy(); barbOut5 = barbOut.copy(); barbOut6 = barbOut.copy(); barbOut7 = barbOut.copy(); 
+#now make output manifold and add barbs
+manifoldOut = Part.makeCylinder(120,3)
+manifoldOut = manifoldOut.cut(manifoldCut)
+manifoldSupport = Part.makeCylinder(115,17)
+manifoldSupportCut = Part.makeCylinder(manifoldSupport.BoundBox.XMax-2,manifoldSupport.BoundBox.ZMax)
+manifoldSupport = manifoldSupport.cut(manifoldSupportCut)
+manifoldSupport2 = Part.makeCylinder(110,manifoldSupport.BoundBox.ZMax)
+manifoldSupportCut2 = Part.makeCylinder(manifoldSupport2.BoundBox.XMax-2,manifoldSupport2.BoundBox.ZMax)
+manifoldSupport2 = manifoldSupport2.cut(manifoldSupportCut2)
+manifoldOut = manifoldOut.fuse(manifoldSupport)
+manifoldOut = manifoldOut.fuse(manifoldSupport2)
+#add a center platform with light connections so we can mout power supply and dc buck converters.
+maniOutCenter = Part.makeCylinder(manifoldOut.BoundBox.XMax-35,5)
+#cut screw holes for dc buck - 32/18
+manifoldOutScrewCut = Part.makeCylinder(1.1,10)
+manifoldOutScrewCut.Placement = App.Placement(App.Vector(15,maniOutCenter.BoundBox.YMin+10,0), App.Rotation(0,0,0))
+maniOutCenter = maniOutCenter.cut(manifoldOutScrewCut)
+manifoldOutScrewCut.Placement = App.Placement(App.Vector(15+18,maniOutCenter.BoundBox.YMin+10+32,0), App.Rotation(0,0,0))
+maniOutCenter = maniOutCenter.cut(manifoldOutScrewCut)
+manifoldOutScrewCut.Placement = App.Placement(App.Vector(-5,maniOutCenter.BoundBox.YMin+10+32,0), App.Rotation(0,0,0))
+maniOutCenter = maniOutCenter.cut(manifoldOutScrewCut)
+manifoldOutScrewCut.Placement = App.Placement(App.Vector(-5-18,maniOutCenter.BoundBox.YMin+10,0), App.Rotation(0,0,0))
+maniOutCenter = maniOutCenter.cut(manifoldOutScrewCut)
+#join the center to the edge ring
+maniOutCenterConnector = Part.makeBox(manifoldOut.BoundBox.XMax-10,10,2)
+maniOutCenterConnectorAngles = [0,45,90,135,180,-45,-90,-135]
+for angle in maniOutCenterConnectorAngles:
+  maniOutCenterConnector.Placement = App.Placement(App.Vector(0,0,0), App.Rotation(angle,0,0))
+  maniOutCenter = maniOutCenter.fuse(maniOutCenterConnector)
+manifoldOut = manifoldOut.fuse(maniOutCenter)
+
+barbOut.Placement = App.Placement(App.Vector(manifoldOut.BoundBox.XMax-tubeOutideRadius-3,0,0), App.Rotation(0,0,0))
+barbShadowCut.Placement = App.Placement(App.Vector(manifoldOut.BoundBox.XMax-tubeOutideRadius-3,0,0), App.Rotation(0,0,0)); manifoldOut = manifoldOut.cut(barbShadowCut); manifoldOut = manifoldOut.cut(barbShadowCut)
+barbOut2.Placement = App.Placement(App.Vector(manifoldOut.BoundBox.XMax/1.41-tubeOutideRadius-.5,manifoldOut.BoundBox.YMax/1.41-tubeOutideRadius-.5,0), App.Rotation(0,0,0))
+barbShadowCut.Placement = App.Placement(App.Vector(manifoldOut.BoundBox.XMax/1.41-tubeOutideRadius-.5,manifoldOut.BoundBox.YMax/1.41-tubeOutideRadius-.5,0), App.Rotation(0,0,0)); manifoldOut = manifoldOut.cut(barbShadowCut)
+barbOut3.Placement = App.Placement(App.Vector(0,manifoldOut.BoundBox.YMax-tubeOutideRadius-3,0), App.Rotation(0,0,0))
+barbShadowCut.Placement = App.Placement(App.Vector(0,manifoldOut.BoundBox.YMax-tubeOutideRadius-3,0), App.Rotation(0,0,0)); manifoldOut = manifoldOut.cut(barbShadowCut); manifoldOut = manifoldOut.cut(barbShadowCut)
+barbOut4.Placement = App.Placement(App.Vector(-(manifoldOut.BoundBox.XMax/1.41-tubeOutideRadius-.5),manifoldOut.BoundBox.YMax/1.41-tubeOutideRadius-.5,0), App.Rotation(0,0,0));
+barbShadowCut.Placement = App.Placement(App.Vector(-(manifoldOut.BoundBox.XMax/1.41-tubeOutideRadius-.5),manifoldOut.BoundBox.YMax/1.41-tubeOutideRadius-.5,0), App.Rotation(0,0,0));manifoldOut = manifoldOut.cut(barbShadowCut)
+barbOut5.Placement = App.Placement(App.Vector(manifoldOut.BoundBox.XMin+tubeOutideRadius+3,0,0), App.Rotation(0,0,0))
+barbShadowCut.Placement = App.Placement(App.Vector(manifoldOut.BoundBox.XMin+tubeOutideRadius+3,0,0), App.Rotation(0,0,0)); manifoldOut = manifoldOut.cut(barbShadowCut); manifoldOut = manifoldOut.cut(barbShadowCut)
+barbOut6.Placement = App.Placement(App.Vector(-(manifoldOut.BoundBox.XMax/1.41-tubeOutideRadius-.5),-(manifoldOut.BoundBox.YMax/1.41-tubeOutideRadius-.5),0), App.Rotation(0,0,0));
+barbShadowCut.Placement = App.Placement(App.Vector(-(manifoldOut.BoundBox.XMax/1.41-tubeOutideRadius-.5),-(manifoldOut.BoundBox.YMax/1.41-tubeOutideRadius-.5),0), App.Rotation(0,0,0)); manifoldOut = manifoldOut.cut(barbShadowCut)
+barbOut7.Placement = App.Placement(App.Vector(manifoldOut.BoundBox.XMax/1.41-tubeOutideRadius-.5,-(manifoldOut.BoundBox.YMax/1.41-tubeOutideRadius-.5),0), App.Rotation(0,0,0)); 
+barbShadowCut.Placement = App.Placement(App.Vector(manifoldOut.BoundBox.XMax/1.41-tubeOutideRadius-.5,-(manifoldOut.BoundBox.YMax/1.41-tubeOutideRadius-.5),0), App.Rotation(0,0,0)); manifoldOut = manifoldOut.cut(barbShadowCut)
+manifoldOut = manifoldOut.fuse(barbOut).fuse(barbOut2).fuse(barbOut3).fuse(barbOut4).fuse(barbOut5).fuse(barbOut6).fuse(barbOut7)
+#wire guide holes
+powerHole = Part.makeCylinder(5,10)
+powerHole.Placement = App.Placement(App.Vector(manifoldOut.BoundBox.XMin + 55,0,0), App.Rotation(0,0,0))
+manifoldOut = manifoldOut.cut(powerHole)
+powerHole.Placement = App.Placement(App.Vector(manifoldOut.BoundBox.XMin + 60,20,0), App.Rotation(0,0,0))
+manifoldOut = manifoldOut.cut(powerHole)
+wireHole = Part.makeCylinder(2,10)
+wireHole.Placement = App.Placement(App.Vector(0,manifoldOut.BoundBox.YMin + 14,0), App.Rotation(0,0,0))
+manifoldOut = manifoldOut.cut(wireHole)
+wireHole.Placement = App.Placement(App.Vector(6,manifoldOut.BoundBox.YMin + 16,0), App.Rotation(0,0,0))
+manifoldOut = manifoldOut.cut(wireHole)
+wireHole.Placement = App.Placement(App.Vector(-6,manifoldOut.BoundBox.YMin + 16,0), App.Rotation(0,0,0))
+manifoldOut = manifoldOut.cut(wireHole)
+#move it out for drawing
+manifoldOut.Placement = App.Placement(App.Vector(5,255,0), App.Rotation(0,0,0))
+Part.show(manifoldOut)
+
+######################need a few connector pieces - secure other side of manifold?#######################
+thicknessMiddle = 13
+thicknessReachAcrossBottomManifold = 30
+maniconnector = Part.makeBox(100,20,thicknessReachAcrossBottomManifold)
+maniOutNubbinHeight = 26
+maniInNubbinHeight = 27
+maniInHeight = 21
+maniOutHeight = 3.2
+maniconnectorCut = Part.makeBox(maniconnector.BoundBox.XMax-6,maniconnector.BoundBox.YMax,maniconnector.BoundBox.ZMax)
+maniconnectorCut.Placement = App.Placement(App.Vector(3,0,thicknessMiddle), App.Rotation(0,0,0))
+maniconnector = maniconnector.cut(maniconnectorCut)
+screwCut = Part.makeCylinder(2,thicknessMiddle)
+screwCut.Placement = App.Placement(App.Vector(maniconnector.BoundBox.XMax/2,maniconnector.BoundBox.YMax/2,0), App.Rotation(0,0,0))
+maniconnector = maniconnector.cut(screwCut)
+maniMeasure = maniconnector.copy()
+#add ends
+maniInGrabber = Part.makeBox(maniInHeight+4,maniconnector.BoundBox.YMax,maniconnector.BoundBox.ZMax)
+maniconnectorCut.Placement = App.Placement(App.Vector(4,0,4), App.Rotation(0,0,0))
+maniInGrabber = maniInGrabber.cut(maniconnectorCut)
+maniOutGrabber = Part.makeBox(maniOutHeight+2,maniconnector.BoundBox.YMax,6)
+maniconnectorCut.Placement = App.Placement(App.Vector(0,0,0), App.Rotation(0,0,0)) #reset position
+maniconnectorCut.Placement = App.Placement(App.Vector(-maniconnectorCut.BoundBox.XMax+maniOutHeight,0,2), App.Rotation(0,0,0))
+maniOutGrabber = maniOutGrabber.cut(maniconnectorCut)
+#add nubbins to grab onto the top and bottom mani
+nubbin = Part.makeCylinder(2,maniconnector.BoundBox.YMax)
+nubbin.Placement = App.Placement(App.Vector(0,0,maniInNubbinHeight), App.Rotation(0,0,-90))
+maniconnector = maniconnector.fuse(nubbin)
+nubbin.Placement = App.Placement(App.Vector(maniconnector.BoundBox.XMax,0,maniOutNubbinHeight), App.Rotation(0,0,-90))
+maniconnector = maniconnector.fuse(nubbin)
+#place ends and fuse
+maniOutGrabber.Placement = App.Placement(App.Vector(maniMeasure.BoundBox.XMax,0,0), App.Rotation(0,0,0))
+maniconnector = maniconnector.fuse(maniOutGrabber)
+maniconnector.Placement = App.Placement(App.Vector(maniInGrabber.BoundBox.XMax,0,0), App.Rotation(0,0,0))
+maniconnector = maniconnector.fuse(maniInGrabber)
+maniconnector2 = maniconnector.copy()
+maniconnector3 = maniconnector.copy()
+maniconnector4 = maniconnector.copy()
+maniconnector.Placement = App.Placement(App.Vector(150,125,0), App.Rotation(0,0,0))
+maniconnector2.Placement = App.Placement(App.Vector(150,155,0), App.Rotation(0,0,0))
+maniconnector3.Placement = App.Placement(App.Vector(150,185,0), App.Rotation(0,0,0))
+maniconnector4.Placement = App.Placement(App.Vector(150,215,0), App.Rotation(0,0,0))
+
+#output = maniconnector.fuse(maniconnector2).fuse(maniconnector3).fuse(maniconnector4)
+#output = inputConnector
+Part.show(output)
+
+########now make the float to keep the inlet hose near the surface########
+float = Part.makeSphere(30)
+floatCut = Part.makeSphere(float.BoundBox.XMax-2)
+float = float.cut(floatCut)
+#weighted cage
+rockCage = Part.makeBox(100,100,60)
+rockCageCut = Part.makeBox(rockCage.BoundBox.XMax-8,rockCage.BoundBox.XMax-8,rockCage.BoundBox.ZMax)
+rockCageCut.Placement = App.Placement(App.Vector(4,4,4), App.Rotation(0,0,0))
+rockCage =rockCage.cut(rockCageCut)
+#hose hoops to keep the host in place
+hoseHolster = Part.makeCylinder(11,4)
+hoseHolsterCut = Part.makeCylinder(hoseHolster.BoundBox.XMax-4,hoseHolster.BoundBox.ZMax)
+hoseHolster = hoseHolster.cut(hoseHolsterCut)
+hoseHolster2 = hoseHolster.copy()
+hoseHolster3 = hoseHolster.copy()
+hoseHolster.Placement = App.Placement(App.Vector(rockCage.BoundBox.XMax-4,rockCage.BoundBox.YMax/2,rockCage.BoundBox.ZMax+hoseHolster.BoundBox.XMax-4), App.Rotation(0,90,0))
+hoseHolster2.Placement = App.Placement(App.Vector(rockCage.BoundBox.XMin,rockCage.BoundBox.YMax/2,rockCage.BoundBox.ZMax+hoseHolster2.BoundBox.XMax-4), App.Rotation(0,90,0))
+rockCage = rockCage.fuse(hoseHolster).fuse(hoseHolster2)
+connector = Part.makeBox(145,8,4)
+connector.Placement = App.Placement(App.Vector(-float.BoundBox.XMax,rockCage.BoundBox.YMax/2-4,0), App.Rotation(0,0,0))
+rockCage = rockCage.fuse(connector)
+hoseHolster3.Placement = App.Placement(App.Vector(0,0,float.BoundBox.ZMax+hoseHolster3.BoundBox.XMax-4), App.Rotation(0,90,0))
+float = float.fuse(hoseHolster3)
+float.Placement = App.Placement(App.Vector(-float.BoundBox.XMax+2,rockCage.BoundBox.YMax/2,-float.BoundBox.ZMin), App.Rotation(0,0,0))
+#small box to hold end of hose and filter debris from getting in
+filter = Part.makeBox(20,20,20)
+filterCut1 = Part.makeBox(filter.BoundBox.XMax-4,filter.BoundBox.XMax-4,filter.BoundBox.ZMax-4)
+filterCut1.Placement = App.Placement(App.Vector(2,2,2), App.Rotation(0,0,0))
+filter =filter.cut(filterCut1)
+hoseHolsterCut.Placement = App.Placement(App.Vector(filter.BoundBox.XMax/2,filter.BoundBox.YMax/2,filter.BoundBox.ZMax-2), App.Rotation(0,0,0))
+filter =filter.cut(hoseHolsterCut)
+filterCut2 = Part.makeCylinder(1.5,2)
+filterCut2.Placement = App.Placement(App.Vector(6,6,0), App.Rotation(0,0,0)); filter =filter.cut(filterCut2)
+filterCut2.Placement = App.Placement(App.Vector(6,10,0), App.Rotation(0,0,0)); filter =filter.cut(filterCut2)
+filterCut2.Placement = App.Placement(App.Vector(6,14,0), App.Rotation(0,0,0)); filter =filter.cut(filterCut2)
+filterCut2.Placement = App.Placement(App.Vector(10,6,0), App.Rotation(0,0,0)); filter =filter.cut(filterCut2)
+filterCut2.Placement = App.Placement(App.Vector(10,10,0), App.Rotation(0,0,0)); filter =filter.cut(filterCut2)
+filterCut2.Placement = App.Placement(App.Vector(10,14,0), App.Rotation(0,0,0)); filter =filter.cut(filterCut2)
+filterCut2.Placement = App.Placement(App.Vector(14,6,0), App.Rotation(0,0,0)); filter =filter.cut(filterCut2)
+filterCut2.Placement = App.Placement(App.Vector(14,10,0), App.Rotation(0,0,0)); filter =filter.cut(filterCut2)
+filterCut2.Placement = App.Placement(App.Vector(14,14,0), App.Rotation(0,0,0)); filter =filter.cut(filterCut2)
+filter.Placement = App.Placement(App.Vector(connector.BoundBox.XMax,rockCage.BoundBox.YMax/2-filter.BoundBox.YMax/2,0), App.Rotation(0,0,0))
+filter = filter.fuse(rockCage).fuse(float)
+filter.Placement = App.Placement(App.Vector(190,255,0), App.Rotation(0,0,0))
+filter = filter.fuse(arm).fuse(maniconnector).fuse(maniconnector2).fuse(maniconnector3).fuse(maniconnector4).fuse(outputConnector).fuse(inputConnector)
+Part.show(filter)
+
+'''
+#add hose connection for pump
+pumpHoseRadius=19/2
+pumpHoseHeight = 28
+pumpHose = Part.makeCylinder(pumpHoseRadius,pumpHoseHeight)
+pumpHoseCut = Part.makeCylinder(6,pumpHoseHeight)
+pumpHose=pumpHose.cut(pumpHoseCut)
+#make spring
+helix = Part.makeHelix(1.8,pumpHose.BoundBox.ZMax-3,pumpHoseRadius) #pitch, height, radius
+thread_profile = Part.Wire(Part.makePolygon([App.Vector(pumpHoseRadius,0,0),App.Vector(pumpHoseRadius,0,1.8),App.Vector(pumpHoseRadius+0.8,0,0.9),App.Vector(pumpHoseRadius,0,0)]))
+  #note this is a Part.wire, polygon i.e. W0 = Part.Wire([edge0, edge1, edge2]) where edge0=Part.makeLine(ps0,ps1)
+  #refs - https://forum.freecad.org/viewtopic.php?t=65875    https://forum.freecad.org/viewtopic.php?t=51032
+  #note we have to complete the app.vector triangle - 4 points total so it connects back wehre it starts.
+makeSolid = True; isFrenet = True; transition = 1; 
+pumpThreads = Part.Wire(helix).makePipeShell([thread_profile],makeSolid,isFrenet)
+outletOffset = 20
+#pumpHose.Placement=App.Placement(App.Vector(0,inPipeBase.BoundBox.YMin+(inPipeBase.BoundBox.YMax-inPipeBase.BoundBox.YMin)/2,inPipeBase.BoundBox.ZMax), App.Rotation(0,0,0))
+#pumpThreads.Placement=App.Placement(App.Vector(0,inPipeBase.BoundBox.YMin+(inPipeBase.BoundBox.YMax-inPipeBase.BoundBox.YMin)/2,inPipeBase.BoundBox.ZMax), App.Rotation(0,0,0))
+Part.show(pumpThreads); Part.show(pumpHose)
+'''
+
+#Make it pretty#
+App.activeDocument().recompute()
+Gui.activeDocument().activeView().viewAxometric()
+Gui.SendMsgToActiveView("ViewFit")
